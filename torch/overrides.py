@@ -26,12 +26,13 @@ import collections
 import functools
 import types
 import warnings
-from typing import Dict, Set, List, Any, Callable, Iterable, Type
+from typing import Dict, Set, List, Any, Callable, Iterable, Type, Iterator
 
 import torch
 from torch._C import (
     _has_torch_function, _has_torch_function_unary,
-    _has_torch_function_variadic, _add_docstr)
+    _has_torch_function_variadic, _add_docstr, _set_torch_function_mode, _get_torch_function_mode)
+import contextlib
 
 __all__ = [
     "get_ignored_functions",
@@ -1384,6 +1385,14 @@ def handle_torch_function(
     # overloaded_args already have unique types.
     types = tuple(map(type, overloaded_args))
 
+    # Check for __torch_function__ mode.
+    mode = _get_torch_function_mode()
+    if mode is not None:
+        # NB: unlike on tensors, modes are instances
+        result = mode.__torch_function__(public_api, types, args, kwargs)
+        if result is not NotImplemented:
+            return result
+
     # Call overrides
     for overloaded_arg in overloaded_args:
         # This call needs to become a classmethod call in the future.
@@ -1402,9 +1411,13 @@ def handle_torch_function(
             return result
 
     func_name = '{}.{}'.format(public_api.__module__, public_api.__name__)
-    raise TypeError("no implementation found for '{}' on types that implement "
-                    '__torch_function__: {}'
-                    .format(func_name, [type(arg) for arg in overloaded_args]))
+    msg = (
+        "no implementation found for '{}' on types that implement "
+        '__torch_function__: {}'
+    ).format(func_name, [type(arg) for arg in overloaded_args])
+    if mode is not None:
+        msg += f" nor in mode {mode}"
+    raise TypeError(msg)
 
 has_torch_function = _add_docstr(
     _has_torch_function,
@@ -1587,3 +1600,80 @@ def is_tensor_like(inp):
     True
     """
     return type(inp) is torch.Tensor or hasattr(type(inp), "__torch_function__")
+
+
+class TorchFunctionMode:
+    def __init__(self, *, inner):
+        self.inner = inner
+
+    def __torch_function__(self, func, types, args, kwargs):
+        raise NotImplementedError()
+
+
+class BaseTorchFunctionMode(TorchFunctionMode):
+    # This mode is special, it never delegates, so it doesn't
+    # take an inner
+    def __init__(self):
+        pass
+
+    def __torch_function__(self, func, types, args, kwargs):
+        return func(*args, **kwargs)
+
+
+@contextlib.contextmanager
+def enable_torch_function_mode(mode, *, ignore_preexisting=False) -> Iterator[None]:
+    old = _get_torch_function_mode()
+    if old is not None and not ignore_context:
+        if isinstance(mode, TorchFunctionMode):
+            help_text = (
+                'Use push_torch_function_mode instead.'
+            )
+        else:
+            help_text = (
+                'If you intended to completely override the preexisting mode, '
+                'pass ignore_preexisting=True.  This can result in unexpected '
+                'behavior; please consider making your mode compositional!'
+            )
+        raise ValueError(
+            'Attempted to enable_torch_function_mode, but there is already an '
+            f'active mode {old}.  {help_text}'
+        )
+    # NB: we don't require TorchFunctionMode since this is intended to also
+    # let you directly pass a Tensor subclass type to "mode-ify" it.
+    if not hasattr(mode, '__torch_function__'):
+        raise ValueError(
+            'The argument passed to enable_torch_function_mode must implement '
+            '__torch_function__'
+        )
+    _set_torch_function_mode(mode)
+    try:
+        yield
+    finally:
+        _set_torch_function_mode(old)
+
+
+@contextlib.contextmanager
+def push_torch_function_mode(ctor) -> Iterator[None]:
+    if isinstance(ctor, TorchFunctionMode):
+        raise ValueError(
+            'Expected a TorchFunctionMode constructor function, but got a '
+            f'concrete TorchFunctionMode {ctor}.  If you need to pass other '
+            'arguments to the constructor, use partial() to partially apply '
+            'the constructor.'
+        )
+    old = _get_torch_function_mode()
+    if old is None:
+        inner = BaseTorchFunctionMode()
+    else:
+        inner = old
+    mode = ctor(inner=inner)
+    if not hasattr(mode, '__torch_function__'):
+        raise ValueError(
+            'The argument passed to push_torch_function_mode must implement '
+            '__torch_function__'
+        )
+    _set_torch_function_mode(mode)
+    try:
+        yield
+    finally:
+        _set_torch_function_mode(old)
