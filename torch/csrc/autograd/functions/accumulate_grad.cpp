@@ -1,5 +1,6 @@
 #include <torch/csrc/autograd/functions/accumulate_grad.h>
 
+#include <torch/csrc/autograd/grad_hook_mode.h>
 #include <torch/csrc/autograd/grad_mode.h>
 #include <torch/csrc/autograd/variable.h>
 #include <torch/csrc/autograd/functions/basic_ops.h>
@@ -33,7 +34,6 @@ auto AccumulateGrad::apply(variable_list&& grads) -> variable_list {
   if (!variable.requires_grad())
     return {};
 
-  // std::move(grads[0]) to avoid bumping up refcount
   at::Tensor new_grad = callHooks(variable, std::move(grads[0]));
 
   // Acquire lock to here protect thread safety on variable, this ensures
