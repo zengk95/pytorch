@@ -1,7 +1,8 @@
 import bisect
 import itertools
 import math
-from typing import List, Tuple, Optional
+from dataclasses import dataclass
+from typing import Any, Dict, List, Tuple, Optional
 
 import torch
 from torch.distributed import ProcessGroup
@@ -14,6 +15,15 @@ from torch.distributed._shard.sharding_spec import (
 from torch.distributed.nn.functional import (
     all_to_all_single,
 )
+
+# Represents the metadata information of a shard. This class is tailred for the
+# FSDP use cases. Uses a different naming to avoid conflict with ShardMetadata
+# in torch.distributed._shard.
+@dataclass
+class ShardSizeInfo:
+    full_size: List[int]
+    shard_offsets: List[int]
+    shard_size: List[int]
 
 
 def _sharding_spec_to_offsets(
@@ -142,3 +152,19 @@ def reshard_flatten_tensor(
         group=process_group,
     )
     return local_shard
+
+
+def gather_state_dict(
+    state_dict: Dict[str, Any], curr_rank: int, output_rank: int = 0
+) -> Dict[str, Any]:
+    new_state_dict = {}
+    for key, tensor in state_dict.items():
+        if isinstance(tensor, ShardedTensor):
+            new_state_dict[key] = tensor
+            output_tensor = (
+                torch.empty(tensor.shape).cuda() if curr_rank == output_rank else None
+            )
+            tensor.gather(0, output_tensor)
+            tensor = output_tensor
+        new_state_dict[key] = tensor
+    return new_state_dict
