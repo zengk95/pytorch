@@ -1,7 +1,6 @@
 from typing import Dict, Sequence, List, NoReturn, Union
 from tools.codegen.api.types import (
     ListCType,
-    tensorListT,
     BaseCType,
     Binding,
     ConstRefCType,
@@ -18,7 +17,6 @@ from tools.codegen.api.types import (
     deviceT,
     layoutT,
     optionalTensorRefT,
-    iTensorListRefT,
     iOptTensorListRefT,
     scalarT,
     optionalScalarRefT,
@@ -177,12 +175,6 @@ def translate(
             ctx[
                 NamedCType(t.name, BaseCType(opmath_t))
             ] = f"static_cast<opmath_t>({b.expr})"
-
-        # [Note: ITensorListRef]
-        if t.type == BaseCType(tensorListT):
-            ctx[
-                NamedCType(t.name, BaseCType(iTensorListRefT))
-            ] = f"at::ITensorListRef({b.expr})"
 
         # [Note: IOptTensorListRef]
         if t.type == ConstRefCType(ListCType(OptionalCType(BaseCType(tensorT)))):
