@@ -27,7 +27,7 @@ jobs:
       - name: Merge PR
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_NUM: ${{ github.event.client_payload.pr_num }}
+          PR_NUM: "1"
           GH_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           python3 .github/scripts/tryrebase.py "${PR_NUM}"
