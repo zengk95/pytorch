@@ -12,6 +12,7 @@ def parse_args() -> Any:
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--rebase", action="store_true")
     parser.add_argument("--comment-id", type=int)
+    parser.add_argument("--branch", type=str)
     parser.add_argument("pr_num", type=int)
     return parser.parse_args()
 
@@ -19,6 +20,8 @@ def parse_args() -> Any:
 def rebase_onto(pr: GitHubPR, repo: GitRepo, branch: str, *, dry_run: bool = False) -> None:
     pr_branch_name = f"__pull-request-{pr.pr_num}__init__"
     repo.fetch(f"pull/{pr.pr_num}/head", pr_branch_name)
+    if branch is None:
+        branch = pr.default_branch()
     repo._run_git("rebase", branch, pr_branch_name)
     remote = f"https://github.com/{pr.info['headRepository']['nameWithOwner']}.git"
     refspec = f"{pr_branch_name}:{pr.head_ref()}"
@@ -30,7 +33,7 @@ def rebase_onto(pr: GitHubPR, repo: GitRepo, branch: str, *, dry_run: bool = Fal
 
 def main() -> None:
     args = parse_args()
-    repo = GitRepo(get_git_repo_dir(), get_git_remote_name())
+    repo = GitRepo(get_git_repo_dir(), get_git_remote_name(), debug=True)
     org, project = repo.gh_owner_and_name()
 
     pr = GitHubPR(org, project, args.pr_num)
