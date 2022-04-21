@@ -22,13 +22,17 @@ def rebase_onto(pr: GitHubPR, repo: GitRepo, branch: str, dry_run: bool = False)
     repo.fetch(f"pull/{pr.pr_num}/head", pr_branch_name)
     if branch is None:
         branch = pr.default_branch()
-    repo._run_git("rebase", branch, pr_branch_name)
+    print(repo._run_git("rebase", branch, pr_branch_name))
     remote = f"https://github.com/{pr.info['headRepository']['nameWithOwner']}.git"
     refspec = f"{pr_branch_name}:{pr.head_ref()}"
     if dry_run:
         repo._run_git("push", "--dry-run", "-f", remote, refspec)
     else:
-        repo._run_git("push", "-f", remote, refspec)
+        push_result = repo._run_git("push", "-f", remote, refspec)
+        print(push_result)
+        if "Everything up-to-date" in push_result:
+            gh_post_comment(pr.org, pr.project, pr.pr_num, "tried to rebase and push, but was already up to date", dry_run=dry_run)
+
 
 
 def main() -> None:
