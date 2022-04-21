@@ -16,18 +16,22 @@ def parse_args() -> Any:
 
 def rebase_onto(pr: GitHubPR, repo: GitRepo, dry_run: bool = False) -> None:
     branch = f"pull/{pr.pr_num}/head"
-    repo.fetch(branch, branch)
     onto_branch = pr.default_branch()
-    repo._run_git("rebase", onto_branch, branch)
-    remote = f"https://github.com/{pr.info['headRepository']['nameWithOwner']}.git"
+    remote_url = f"https://github.com/{pr.info['headRepository']['nameWithOwner']}.git"
     refspec = f"{branch}:{pr.head_ref()}"
+
+    repo.fetch(branch, branch)
+    repo._run_git("rebase", onto_branch, branch)
     if dry_run:
-        repo._run_git("push", "--dry-run", "-f", remote, refspec)
+        repo._run_git("push", "--dry-run", "-f", remote_url, refspec)
     else:
-        push_result = repo._run_git("push", "-f", remote, refspec)
+        push_result = repo._run_git("push", "-f", remote_url, refspec)
         if "Everything up-to-date" in push_result:
             gh_post_comment(pr.org, pr.project, pr.pr_num,
                             f"Tried to rebase and push PR #{pr.pr_num}, but it was already up to date", dry_run=dry_run)
+        else:
+            gh_post_comment(pr.org, pr.project, pr.pr_num,
+                        f"Successfully rebased {pr.head_ref()} onto {onto_branch}, please pull locally before adding more changes", dry_run=dry_run)
 
 
 def main() -> None:
