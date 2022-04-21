@@ -10,16 +10,14 @@ def parse_args() -> Any:
     from argparse import ArgumentParser
     parser = ArgumentParser("Rebase PR into branch")
     parser.add_argument("--dry-run", action="store_true")
-    parser.add_argument("--branch", type=str)
     parser.add_argument("pr_num", type=int)
     return parser.parse_args()
 
 
-def rebase_onto(pr: GitHubPR, repo: GitRepo, onto_branch: str, dry_run: bool = False) -> None:
+def rebase_onto(pr: GitHubPR, repo: GitRepo, dry_run: bool = False) -> None:
     branch = f"pull/{pr.pr_num}/head"
     repo.fetch(branch, branch)
-    if onto_branch is None:
-        onto_branch = pr.default_branch()
+    onto_branch = pr.default_branch()
     repo._run_git("rebase", onto_branch, branch)
     remote = f"https://github.com/{pr.info['headRepository']['nameWithOwner']}.git"
     refspec = f"{branch}:{pr.head_ref()}"
@@ -28,7 +26,8 @@ def rebase_onto(pr: GitHubPR, repo: GitRepo, onto_branch: str, dry_run: bool = F
     else:
         push_result = repo._run_git("push", "-f", remote, refspec)
         if "Everything up-to-date" in push_result:
-            gh_post_comment(pr.org, pr.project, pr.pr_num, f"Tried to rebase and push PR #{pr.pr_num}, but it was already up to date", dry_run=dry_run)
+            gh_post_comment(pr.org, pr.project, pr.pr_num,
+                            f"Tried to rebase and push PR #{pr.pr_num}, but it was already up to date", dry_run=dry_run)
 
 
 def main() -> None:
@@ -48,7 +47,7 @@ def main() -> None:
         return
 
     try:
-        rebase_onto(pr, repo, args.branch, dry_run=args.dry_run)
+        rebase_onto(pr, repo, dry_run=args.dry_run)
     except Exception as e:
         msg = f"Rebase failed due to {e}"
         run_url = os.getenv("GH_RUN_URL")

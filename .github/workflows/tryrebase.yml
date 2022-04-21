@@ -1,11 +1,11 @@
-name: Rebase
+name: Rebase PR
 
 on:
   issue_comment:
     types: [created]
 
 jobs:
-  rebase:
+  do_rebase:
     runs-on: ubuntu-20.04
     if: github.event.issue.pull_request != '' && contains(github.event.comment.body, '/rebase')
     steps:
@@ -20,6 +20,10 @@ jobs:
         with:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Github context
+        env:
+          ASDF: ${{ github.event }}
 
       - name: Setup committer id
         run: |
