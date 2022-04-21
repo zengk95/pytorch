@@ -17,8 +17,8 @@ def parse_args() -> Any:
     return parser.parse_args()
 
 
-def rebase_onto(pr: GitHubPR, repo: GitRepo, branch: str, *, dry_run: bool = False) -> None:
-    pr_branch_name = f"__pull-request-{pr.pr_num}__init__"
+def rebase_onto(pr: GitHubPR, repo: GitRepo, branch: str, dry_run: bool = False) -> None:
+    pr_branch_name = f"rebase-pr-{pr.pr_num}"
     repo.fetch(f"pull/{pr.pr_num}/head", pr_branch_name)
     if branch is None:
         branch = pr.default_branch()
