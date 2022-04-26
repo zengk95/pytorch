@@ -39,9 +39,9 @@ def _check_output(items: List[str], encoding: str = "utf-8") -> str:
         stdout = e.stdout.decode(encoding) if e.stdout is not None else ""
         stderr = e.stderr.decode(encoding) if e.stderr is not None else ""
         if len(stderr) == 0:
-            msg += f"\n{stdout}"
+            msg += f"\n```\n{stdout}\n```"
         else:
-            msg += f"\nstdout:\n{stdout}\nstderr:\n{stderr}"
+            msg += f"\nstdout:\n```\n{stdout}\n```\nstderr:\n```\n{stderr}\n```"
         raise RuntimeError(msg) from e
 
 
@@ -210,10 +210,10 @@ class GitRepo:
                 from_commits.remove(commit)
             for commit in to_values:
                 to_commits.remove(commit)
-        # Another HACK: Patch-id is not stable for commits with binary files or for big changes across commits
+        # Another HACK: Patch-id is not stable for commits with binary files
         # I.e. cherry-picking those from one branch into another will change patchid
         if "pytorch/pytorch" in self.remote_url():
-            for excluded_commit in ["8e09e20c1dafcdbdb45c2d1574da68a32e54a3a5", "5f37e5c2a39c3acb776756a17730b865f0953432"]:
+            for excluded_commit in ["8e09e20c1dafcdbdb45c2d1574da68a32e54a3a5"]:
                 if excluded_commit in from_commits:
                     from_commits.remove(excluded_commit)
 
