@@ -27,6 +27,10 @@ from typing import (
 
 import torch
 import torch.distributed as dist
+from torch.distributed.utils import (
+    _verify_param_shape_across_processes,
+    _sync_params_and_buffers,
+)
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import Variable
@@ -557,6 +561,33 @@ class FullyShardedDataParallel(nn.Module):
             if p not in ignored_params and not isinstance(p, FlatParameter)
         ]
 
+        # At this point we are wrapping an atomic FSDP unit. Check module shapes
+        # and broadcast module from rank 0 to ensure everything starts off with
+        # the same parameters.
+        # Hack: move to compute device and back if it is CPU. In the future,
+        # CPU modules will be moved to device_id if it is specified by user.
+        prev_device = next(module.parameters()).device
+        was_cpu = (prev_device == torch.device("cpu"))
+        if was_cpu:
+            warnings.warn(
+                f"Module is input on CPU, we are moving it to {self.compute_device}"
+                " to perform parameter verification, flattening, sharding, and will"
+                " move it back after."
+            )
+            module = module.to(self.compute_device)
+        if params:
+            _verify_param_shape_across_processes(
+                process_group=self.process_group,
+                tensors=params,  # TODO: FSDP + DDP to verify buffers as well
+            )
+        _sync_params_and_buffers(
+            module=module,
+            process_group=self.process_group,
+            # Same bucket size as used in DDP.
+            broadcast_bucket_size=int(250 * 1024 * 1024),
+            rank=0,
+            params_and_buffers_to_ignore=ignored_params,
+        )
         self._fsdp_wrapped_module: FlattenParamsWrapper = FlattenParamsWrapper(
             module, param_list=params
         )
@@ -615,6 +646,13 @@ class FullyShardedDataParallel(nn.Module):
         if self.cpu_offload.offload_params:
             for p in self.params:
                 self._offload_to_cpu(p)
+
+        if was_cpu:
+            # _fsdp_wrapped_module took ownership of module and we deleted
+            # module, so move _fsdp_wrapped_module back.
+            self._fsdp_wrapped_module = self._fsdp_wrapped_module.to(
+                prev_device
+            )
 
         # For validating execution order across ranks
         self._exec_order_data = _ExecOrderData()
