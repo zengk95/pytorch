@@ -39,9 +39,9 @@ def _check_output(items: List[str], encoding: str = "utf-8") -> str:
         stdout = e.stdout.decode(encoding) if e.stdout is not None else ""
         stderr = e.stderr.decode(encoding) if e.stderr is not None else ""
         if len(stderr) == 0:
-            msg += f"\n```\n{stdout}\n```"
+            msg += f"\n```\n{stdout}```"
         else:
-            msg += f"\nstdout:\n```\n{stdout}\n```\nstderr:\n```\n{stderr}\n```"
+            msg += f"\nstdout:\n```\n{stdout}```\nstderr:\n```\n{stderr}```"
         raise RuntimeError(msg) from e
 
 
