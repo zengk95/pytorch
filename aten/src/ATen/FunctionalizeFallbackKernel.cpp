@@ -5,10 +5,18 @@
 #include <c10/util/irange.h>
 
 #ifndef AT_PER_OPERATOR_HEADERS
+<<<<<<< HEAD
 #include <ATen/NativeFunctions.h>
 #else
 #include <ATen/ops/to_native.h>
 #endif
+=======
+#include <ATen/ATen.h>
+#else
+#include <ATen/ops/_to_copy.h>
+#endif
+// needed for the meta tensor calls to get stride info in functionalization
+>>>>>>> 5e0d87c1c8 ([prototype] integrate functionalization <> LTC torchscript backend)
 
 namespace {
   void functionalizeFallback(const c10::OperatorHandle& op, c10::DispatchKeySet dispatchKeySet, torch::jit::Stack* stack) {
@@ -94,10 +102,56 @@ at::Tensor to_device_functionalize(const at::Tensor & self, at::Device device, a
   }
 }
 
+bool device_opted_into_functionalization(c10::optional<c10::Device> d) {
+    return d.has_value() && (d->type() == c10::DeviceType::XLA || d->type() == c10::DeviceType::Lazy);
+}
+
+at::Tensor _to_copy_functionalize(
+        const at::Tensor & self,
+        c10::optional<at::ScalarType> dtype,
+        c10::optional<at::Layout> layout,
+        c10::optional<at::Device> device,
+        c10::optional<bool> pin_memory,
+        bool non_blocking,
+        c10::optional<at::MemoryFormat> memory_format) {
+  at::Tensor self_;
+  if (at::functionalization::impl::isFunctionalTensor(self)) {
+    // sync any pending updates
+    at::functionalization::impl::sync(self);
+    // pass the unwrapped tensor to the backend
+    self_ = at::functionalization::impl::from_functional_tensor(self);
+  } else {
+    self_ = self;
+  }
+
+  at::AutoDispatchSkipFunctionalize guard;
+  auto out = at::_to_copy(self_, dtype, layout, device, pin_memory, non_blocking, memory_format);
+
+  // Special case: if the Functionalize key is not in TLS, we assume that we're running
+  // on a lazy backend (LTC).
+  // In that case, if we're copying to a non-functionalize-enabled device,
+  // then the functionalization pass should "end". We need to sync any updates on the input
+  // tensor, but we shouldn't wrap the output.
+  if (!c10::impl::tls_local_dispatch_key_set().included_.has(c10::DispatchKey::Functionalize)) {
+    if (!device_opted_into_functionalization(device)) {
+      return out;
+    }
+  }
+  return at::functionalization::impl::to_functional_tensor(out);
+}
+
 TORCH_LIBRARY_IMPL(_, Functionalize, m) {
   m.fallback(torch::CppFunction::makeFromBoxedFunction<&functionalizeFallback>());
 }
-
 TORCH_LIBRARY_IMPL(aten, Functionalize, m) {
   m.impl("to.device", TORCH_FN(to_device_functionalize));
+  // Note [Lazy Tensor Functionalization]
+  // LazyTensor uses the functionalization pass from core.
+  // The first time that we create a lazy tensor
+  // (either from a factory function, or from another device using at::to),
+  // we need to manually turn the tensor into a "functional tensor" by wrapping it.
+  // When we stop performing computation on the lazy device
+  // (e.g. when we copy a LazyTensor back onto cpu),
+  // we need to "end" the functionalization, syncing any pending updates and unwrapping it.
+  m.impl("_to_copy", TORCH_FN(_to_copy_functionalize));
 }
