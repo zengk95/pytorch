@@ -120,6 +120,7 @@ ALLOW_LIST = [
     ("aten::_cat", datetime.date(2022, 5, 15)),
     ("aten::nansum", datetime.date(2022, 5, 15)),
     ("aten::zero", datetime.date(2022, 5, 15)),
+    ("aten::_log_softmax", datetime.date(2022, 6, 15)),
 ]
 
 ALLOW_LIST_COMPILED = [
