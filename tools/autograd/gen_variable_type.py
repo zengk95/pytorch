@@ -331,6 +331,7 @@ GRADIENT_IMPLEMENTED_FOR_COMPLEX = {
     "cholesky_inverse",
     "linalg_lu",
     "linalg_lu_solve",
+    "_linalg_solve",
 }
 
 GRADIENT_IMPLEMENTED_FOR_SPARSE_COMPLEX = {
