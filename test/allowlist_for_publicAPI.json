@@ -2087,6 +2087,7 @@
     "lu",
     "lu_factor",
     "lu_factor_ex",
+    "lu_solve",
     "matmul",
     "matrix_exp",
     "matrix_norm",
