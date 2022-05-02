@@ -2756,7 +2756,6 @@ else:
             self.assertEqual(sz, y.size())
 
     # FIXME: move to indexing test suite
-    @onlyCPU
     @parametrize("reduce", ['prod', 'amin', 'amax', 'mean'])
     @dtypes(*floating_types_and(torch.half, torch.bfloat16))
     def test_index_reduce(self, device, dtype, reduce):
@@ -2778,7 +2777,8 @@ else:
                         src = noncontiguous_like(src)
                     idx = torch.randint(num_dest, (num_src,), dtype=idx_dtype, device=device)
                     if not index_contig:
-                        idx = noncontiguous_like(idx)
+                        # noncontiguous_like fails with RuntimeError: XLA tensors do not have storage
+                        idx = torch.testing.make_non_contiguous(idx)
                     expected = dest.clone()
                     dest._index_reduce_(dim, idx, src, reduce, include_self=include_self)
                     # fill rows in idx with reduction inits if include_self=False
