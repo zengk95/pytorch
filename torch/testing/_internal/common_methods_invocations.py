@@ -21,7 +21,7 @@ from torch.testing import make_tensor
 from torch.testing._internal.common_dtype import (
     _dispatch_dtypes, floating_types, floating_types_and, complex_types, floating_and_complex_types,
     floating_and_complex_types_and, all_types_and_complex_and, all_types_and, all_types_and_complex, integral_types_and,
-    all_types, double_types, empty_types
+    all_types, double_types, empty_types, integral_types
 )
 from torch.testing._internal.common_device_type import \
     (onlyCPU, onlyCUDA, onlyNativeDeviceTypes, disablecuDNN, skipCUDAIfNoMagma, skipCUDAIfNoMagmaAndNoCusolver,
@@ -1450,6 +1450,18 @@ def sample_inputs_linalg_matrix_power(op_info, device, dtype, requires_grad, **k
             yield SampleInput(make_arg(size), args=(n,))
         for n in [-4, -2, -1]:
             yield SampleInput(make_arg_fullrank(*size), args=(n,))
+
+def sample_inputs_pow(op, device, dtype, requires_grad, **kwargs):
+    # If base is complex allow for negative real/imag components
+    lhs_low = -9 if dtype.is_complex else 0
+
+    # Only Interal types do not support negative exponents
+    rhs_low = 1 if dtype in integral_types() else -9
+
+    op.lhs_make_tensor_kwargs['low'] = lhs_low
+    op.rhs_make_tensor_kwargs['low'] = rhs_low
+
+    return sample_inputs_elementwise_binary(op, device, dtype, requires_grad, **kwargs)
 
 def sample_inputs_hsplit(op_info, device, dtype, requires_grad, **kwargs):
     return (SampleInput(make_tensor((6,), dtype=dtype, device=device,
@@ -13599,6 +13611,7 @@ op_db: List[OpInfo] = [
            sample_inputs_func=sample_inputs_permute),
     BinaryUfuncInfo('pow',
                     dtypes=all_types_and_complex_and(torch.half, torch.bfloat16),
+                    ref=np.power,
                     # Due to AVX2 curently not being fully supported for Float16, log_vml_cpu can't be enabled
                     # for Float16, causing this test to fail. pow's autograd for Float16 is thus currently
                     # unsupported on CPU.
@@ -13609,29 +13622,46 @@ op_db: List[OpInfo] = [
                     supports_fwgrad_bwgrad=True,
                     assert_autodiffed=True,
                     supports_one_python_scalar=True,
-                    # TODO: FIXME: pow needs a way of specifying that for integer
-                    #   types only it does not support negative exponentes
+                    # For the testing of reference implemenations the binary_ufunc does not use the provided
+                    # sampiling function. They use the default binary ufuncs generator and therefore
+                    # there is still a need to pass in the rhs_make_tensor args and to skip hard coded tests that
+                    # cause int values to be exponentiated to negative exponents
                     rhs_make_tensor_kwargs=dict(low=1),
+                    sample_inputs_func=sample_inputs_pow,
                     skips=(
-                        # nan vs nan comparisons
-                        # https://github.com/pytorch/pytorch/issues/74279
-                        DecorateInfo(unittest.skip("Skipped!"), 'TestGradients'),
+                        # TODO convert skips to xfails
+                        DecorateInfo(unittest.skip("Skipped!"), 'TestBinaryUfuncs', 'test_reference_numerics_small_values',
+                                     dtypes=[torch.int8, torch.int16, torch.int32, torch.int64, torch.complex64, torch.complex128]),
+                        DecorateInfo(unittest.skip("Skipped!"), 'TestBinaryUfuncs', 'test_reference_numerics_large_values',
+                                     dtypes=[torch.int16, torch.int32, torch.int64, torch.complex64, torch.complex128]),
+                        DecorateInfo(unittest.skip("Skipped!"), 'TestBinaryUfuncs', 'test_reference_numerics_extremal_values',
+                                     dtypes=[torch.complex64, torch.complex128]),
+                        DecorateInfo(unittest.skip("Skipped!"), 'TestBinaryUfuncs', 'test_reference_numerics',
+                                     dtypes=[torch.int8, torch.int16, torch.int32, torch.int64, torch.complex64]),
+                        DecorateInfo(unittest.skip("Skipped!"), 'TestBinaryUfuncs', 'test_scalar_support',
+                                     dtypes=[torch.float32, torch.int64, torch.complex64]),
                     )),
     BinaryUfuncInfo('float_power',
+                    ref=np.float_power,
                     dtypes=all_types_and_complex_and(torch.half, torch.bfloat16, torch.bool),
                     promotes_int_to_float=True,
                     supports_forward_ad=True,
                     supports_fwgrad_bwgrad=True,
                     supports_one_python_scalar=True,
+                    sample_inputs_func=sample_inputs_pow,
                     skips=(
                         # FIXME
                         # AssertionError: Object comparison failed: torch.float64 != torch.float32
-                        DecorateInfo(unittest.expectedFailure, 'TestBinaryUfuncs', 'test_type_promotion'),
-                        # nan vs nan comparisons
-                        # https://github.com/pytorch/pytorch/issues/74279
-                        DecorateInfo(unittest.skip("Skipped!"), 'TestGradients'),
+                        DecorateInfo(unittest.skip("Skipped!"), 'TestBinaryUfuncs', 'test_type_promotion'),
                         # -3.43399e+38 is outside the range of representable values of type 'float'
                         DecorateInfo(unittest.skip("Skipped!"), 'TestJit', 'test_variant_consistency_jit'),
+                        # #TODO convert skips to xfails
+                        DecorateInfo(unittest.skip("Skipped!"), 'TestBinaryUfuncs', 'test_reference_numerics_small_values',
+                                     dtypes=[torch.complex64, torch.complex128]),
+                        DecorateInfo(unittest.skip("Skipped!"), 'TestBinaryUfuncs', 'test_reference_numerics_large_values',
+                                     dtypes=[torch.complex64, torch.complex128]),
+                        DecorateInfo(unittest.skip("Skipped!"), 'TestBinaryUfuncs', 'test_reference_numerics_extremal_values',
+                                     dtypes=[torch.complex64, torch.complex128]),
                     )),
     OpInfo('qr',
            op=torch.qr,
