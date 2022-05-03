@@ -721,15 +721,26 @@ void BlockInfo::prepare_for_memory_planner(
   FastSet<const Value*> graph_output_values(
       block_.outputs().begin(), block_.outputs().end());
 
-  // collect register indices of outputs of ops with out variant
   for (StaticNodeInfo& pnode : nodes_) {
     if (!pnode.has_out_variant()) {
       continue;
     }
-    auto outputs = pnode.node()->outputs();
+    const auto outputs = pnode.node()->outputs();
+    const FastSet<const Value*> inputs(
+        pnode.node()->inputs().begin(), pnode.node()->inputs().end());
+
+    const auto is_optimizable_container =
+        node_is_optimizable_container_type(pnode.node());
+
     for (const auto i : c10::irange(outputs.size())) {
       const Value* out_v = outputs[i];
-      // Types are stored in the underlying TorchScript IR
+
+      // This can happen in ops that manage only a subset of their outputs like
+      // reshape_maybe_copy_out
+      if (mayContainAlias(alias_db, out_v, inputs)) {
+        continue;
+      }
+
       bool is_tensor_type = out_v->type()->castRaw<TensorType>();
       if (opts.manage_output_tensors && is_tensor_type &&
           graph_output_values.find(out_v) == graph_output_values.end() &&
@@ -737,15 +748,19 @@ void BlockInfo::prepare_for_memory_planner(
         managed_output_tensor_values_.insert(out_v);
         continue;
       }
+
       if (value_group_.isAlwaysAlive(out_v)) {
         continue;
       }
+
       if (is_tensor_type) {
         managed_tensor_values_.insert(out_v);
-      } else if (node_is_optimizable_container_type(pnode.node())) {
+      } else if (is_optimizable_container) {
         // We "leak" certain container types because their allocations
-        // take a long time
+        // take a long time.
+        // N.B. we have to do this after the isAlwaysAlive check
         leaked_values_.insert(out_v);
+        continue;
       }
     }
   }
@@ -1876,14 +1891,19 @@ static bool checkNoMemoryOverlap(const at::Tensor& a, const at::Tensor& b) {
 }
 
 bool ProcessedNode::verify_no_memory_overlap(bool force_check) const {
-  const static std::array<c10::Symbol, 7> special_case_ops = {
+  const static std::array<c10::Symbol, 8> special_case_ops = {
       fromQualString("prim::TypeCheck"),
       fromQualString("prim::IfThenElse"),
       fromQualString("static_runtime::select_tensor"),
       fromQualString("static_runtime::VarTupleUnpack"),
       fromQualString("static_runtime::dict_unpack"),
       fromQualString("static_runtime::fused_split_and_squeeze"),
-      fromQualString("static_runtime::create_owned_ref")};
+      fromQualString("static_runtime::create_owned_ref"),
+      // reshape_maybe_copy_out is the only op that has a managed AND unmanaged
+      // output, so just skip the check (we could change
+      // verify_inputs_dont_overlap_outputs if we decide to add more ops like
+      // this later).
+      fromQualString("static_runtime::reshape_maybe_copy_out")};
   if (!force_check &&
       std::find(
           begin(special_case_ops), end(special_case_ops), node()->kind()) !=
