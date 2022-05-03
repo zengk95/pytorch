@@ -2222,6 +2222,30 @@ class TestIterDataPipeSingletonConstraint(TestCase):
         with self.assertRaisesRegex(RuntimeError, "This iterator has been invalidated"):
             next(it1)
 
+    def test_iterdatapipe_singleton_constraint_multiple_outputs(self):
+        r"""
+        Testing for the case where IterDataPipe has multiple child DataPipes as outputs.
+        """
+        # Functional Test: all previous related iterators should be invalidated when a new iterator
+        #                  is created from a ChildDataPipe
+        source_dp: IterDataPipe = dp.iter.IterableWrapper(range(10))
+        cdp1, cdp2 = source_dp.fork(num_instances=2)
+        it1, it2 = iter(cdp1), iter(cdp2)
+        self.assertEqual(list(range(10)), list(it1))
+        self.assertEqual(list(range(10)), list(it2))
+        it1, it2 = iter(cdp1), iter(cdp2)
+        it3 = iter(cdp1)  # This should invalidate `it1` and `it2`
+        with self.assertRaisesRegex(RuntimeError, "This iterator has been invalidated"):
+            next(it1)
+        with self.assertRaisesRegex(RuntimeError, "This iterator has been invalidated"):
+            next(it2)
+        self.assertEqual(0, next(it3))
+        # The next line should not invalidate anything, as there was no new iterator created
+        # for `cdp2` yet, after `it2` was invalidated
+        it4 = iter(cdp2)
+        self.assertEqual(1, next(it3))  # An error shouldn't be raised here
+        self.assertEqual(list(range(10)), list(it4))
+
 
 if __name__ == '__main__':
     run_tests()
