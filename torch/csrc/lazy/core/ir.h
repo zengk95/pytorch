@@ -176,8 +176,8 @@ inline std::ostream& operator<<(std::ostream& stream, const Node& node) {
 }
 
 template <typename T>
-const T* NodeCast(const Node* node, OpKind op) {
-  if (op != node->op()) {
+const T* NodeCast(const Node* node) {
+  if (T::class_op_kind != node->op()) {
     return nullptr;
   }
 #ifdef NDEBUG
