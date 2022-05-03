@@ -1220,42 +1220,36 @@ class TestLinalg(TestCase):
             return result
 
         def run_test_case(input, ord, dim, keepdim, norm_dtype):
-            msg = f'input.size()={input.size()}, ord={ord}, dim={dim}, keepdim={keepdim}, dtype={dtype}, norm_dtype={norm_dtype}'
-            error_msg = None
-            if input.numel() == 0:
-                if ord < 0:
-                    error_msg = r'linalg.vector_norm of negative order cannot be performed on an empty tensor'
-                elif ord == inf and (dim is None or input.size(dim) == 0):
-                    error_msg = (
-                        r'linalg.vector_norm cannot compute the infinity norm on an empty '
-                        r'dimension because the operation does not have an identity')
-            if error_msg is None:
+            if (input.numel() == 0 and
+                (ord < 0. or ord == inf) and
+                (dim is None or input.shape[dim] == 0)):
+                # The operation does not have an identity.
+                error_msg = "linalg.vector_norm cannot compute"
+                with self.assertRaisesRegex(RuntimeError, error_msg):
+                    torch.linalg.vector_norm(input, ord, dim=dim, keepdim=keepdim)
+            else:
+                msg = f'input.size()={input.size()}, ord={ord}, dim={dim}, keepdim={keepdim}, dtype={dtype}, norm_dtype={norm_dtype}'
                 result_dtype_reference = vector_norm_reference(input, ord, dim=dim, keepdim=keepdim, dtype=norm_dtype)
                 result_dtype = torch.linalg.vector_norm(input, ord, dim=dim, keepdim=keepdim, dtype=norm_dtype)
+                if dtype.is_complex:
+                    result_dtype_reference = result_dtype_reference.real
                 self.assertEqual(result_dtype, result_dtype_reference, msg=msg)
 
                 if norm_dtype is not None:
-                    result_convert_before = torch.linalg.vector_norm(input.to(norm_dtype), ord, dim=dim, keepdim=keepdim)
-                    if norm_dtype.is_complex:
-                        result_convert_before = result_convert_before.to(norm_dtype)
+                    ref = torch.linalg.vector_norm(input.to(norm_dtype), ord, dim=dim, keepdim=keepdim)
+                    actual = torch.linalg.vector_norm(input, ord, dim=dim, keepdim=keepdim, dtype=norm_dtype)
+                    self.assertEqual(ref, actual, msg=msg)
 
-                    result_out = torch.empty((0), dtype=norm_dtype, device=device)
-                    torch.linalg.vector_norm(input, ord, dtype=norm_dtype, dim=dim, keepdim=keepdim, out=result_out)
-                    self.assertEqual(result_convert_before, result_out, msg=msg)
-                else:
-                    result_out = torch.empty((0), dtype=result_dtype.dtype, device=device)
-                    torch.linalg.vector_norm(input, ord, dim=dim, keepdim=keepdim, out=result_out)
-                    self.assertEqual(result_dtype, result_out, msg=msg)
-            else:
-                with self.assertRaises(RuntimeError):
-                    vector_norm_reference(input, ord, dim=dim, keepdim=keepdim)
-                with self.assertRaisesRegex(RuntimeError, error_msg):
-                    torch.linalg.vector_norm(input, ord, dim=dim, keepdim=keepdim)
-
-        if dtype.is_complex:
-            norm_dtypes = [None, torch.cfloat, torch.cdouble]
+        if dtype == torch.cfloat:
+            norm_dtypes = (None, torch.cfloat, torch.cdouble)
+        elif dtype == torch.cdouble:
+            norm_dtypes = (None, torch.cdouble)
+        elif dtype in (torch.float16, torch.bfloat16, torch.float):
+            norm_dtypes = (None, torch.float, torch.double)
+        elif dtype == torch.double:
+            norm_dtypes = (None, torch.double)
         else:
-            norm_dtypes = [None, torch.float, torch.double, torch.cfloat, torch.cdouble, torch.float16, torch.bfloat16]
+            raise RuntimeError("Unsupported dtype")
 
         for input_size, ord, keepdim, norm_dtype in product(input_sizes, ord_vector, [True, False], norm_dtypes):
             input = make_tensor(input_size, dtype=dtype, device=device, low=-9, high=9)
@@ -1288,40 +1282,6 @@ class TestLinalg(TestCase):
                 else:
                     with self.assertRaises(error):
                         torch.linalg.vector_norm(input, dim=dim)
-
-    # Test that linalg.vector_norm throws an error if the out tensor's dtype
-    # does not match the expected output dtype
-    @dtypes(torch.float, torch.double, torch.cfloat, torch.cdouble, torch.bfloat16, torch.float16)
-    def test_vector_norm_out_dtype_error(self, device, dtype):
-        input = torch.randn(10, device=device, dtype=dtype)
-        dtypes = [None, torch.float, torch.double, torch.cfloat, torch.cdouble, torch.float16, torch.bfloat16]
-
-        for norm_dtype, out_dtype in product(dtypes, dtypes):
-            if out_dtype is None:
-                continue
-
-            if norm_dtype is None:
-                if dtype == torch.cfloat:
-                    expected_dtype = torch.float
-                elif dtype == torch.cdouble:
-                    expected_dtype = torch.double
-                else:
-                    expected_dtype = dtype
-            else:
-                expected_dtype = norm_dtype
-
-            result = torch.empty((0), device=device, dtype=out_dtype)
-            msg = f'norm_dtype: {norm_dtype}, out_dtype: {out_dtype}, expected_dtype: {expected_dtype}'
-
-            if dtype.is_complex and norm_dtype is not None and not norm_dtype.is_complex:
-                with self.assertRaisesRegex(RuntimeError, r"linalg.vector_norm expected complex 'dtype'", msg=msg):
-                    torch.linalg.vector_norm(input, dtype=norm_dtype, out=result)
-
-            elif out_dtype != expected_dtype:
-                with self.assertRaisesRegex(RuntimeError, r'linalg.vector_norm expected out tensor dtype', msg=msg):
-                    torch.linalg.vector_norm(input, dtype=norm_dtype, out=result)
-            else:
-                torch.linalg.vector_norm(input, dtype=norm_dtype, out=result)
 
     # This test compares torch.linalg.norm and numpy.linalg.norm to ensure that
     # their vector norm results match
@@ -1740,14 +1700,9 @@ class TestLinalg(TestCase):
     def test_norm_vector_degenerate_shapes(self, device, dtype):
         def run_test_case(input, ord, dim, keepdim):
             msg = f'input.size()={input.size()}, ord={ord}, dim={dim}, keepdim={keepdim}, dtype={dtype}'
-            should_error = False
-            if ord is not None and ord < 0:
-                should_error = True
-            elif ord == inf:
-                if dim is None or input.size(dim) == 0:
-                    should_error = True
-
-            if should_error:
+            if (input.numel() == 0 and
+                (ord < 0. or ord == inf) and
+                (dim is None or input.shape[dim] == 0)):
                 with self.assertRaises(RuntimeError):
                     torch.linalg.norm(input, ord, dim, keepdim)
             else:
@@ -1756,7 +1711,7 @@ class TestLinalg(TestCase):
                 result = torch.linalg.norm(input, ord, dim, keepdim)
                 self.assertEqual(result, result_numpy, msg=msg)
 
-        ord_vector = [0, 0.5, 1, 2, 3, inf, -0.5, -1, -2, -3, -inf, None]
+        ord_vector = [0, 0.5, 1, 2, 3, inf, -0.5, -1, -2, -3, -inf]
         S = 10
         test_cases = [
             # input size, dim
