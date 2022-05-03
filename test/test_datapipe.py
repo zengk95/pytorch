@@ -2155,5 +2155,73 @@ class TestSharding(TestCase):
         self.assertEqual(sorted(expected), sorted(items))
 
 
+class TestIterDataPipeSingletonConstraint(TestCase):
+
+    def test_iterdatapipe_singleton_constraint(self):
+        r"""
+        Testing for the case where IterDataPipe's `__iter__` is a generator function.
+        """
+        # Functional Test: There should be an error with multiple iterators
+        source_dp: IterDataPipe = dp.iter.IterableWrapper(range(10))
+        it1 = iter(source_dp)
+        self.assertEqual(list(range(10)), list(it1))  # It can
+        it1 = iter(source_dp)
+        self.assertEqual(list(range(10)), list(it1))
+        it1 = iter(source_dp)
+        self.assertEqual(0, next(it1))
+        it2 = iter(source_dp)
+        self.assertEqual(0, next(it2))
+        with self.assertRaisesRegex(RuntimeError, "This iterator has been invalidated"):
+            next(it1)
+
+        r"""
+        Testing for the case where IterDataPipe's `__iter__` returns `self` and there is a `__next__` method
+        Note that the following DataPipe by is singleton by default (because `__iter__` returns `self`).
+        Therefore the test will merely make sure the calls return the same object.
+        """
+        class _CustomIterDP_Self(IterDataPipe):
+            def __init__(self, iterable):
+                self.iterable = iter(iterable)
+
+            def __iter__(self):
+                return self
+
+            def __next__(self):
+                return next(self.iterable)
+
+        # Functional Test: Check that every `__iter__` call returns the same object
+        source_dp = _CustomIterDP_Self(range(10))
+        it1 = iter(source_dp)
+        self.assertEqual(0, next(it1))
+        self.assertEqual(1, next(source_dp))
+        it2 = iter(source_dp)
+        with self.assertRaisesRegex(RuntimeError, "This iterator has been invalidated"):
+            next(it1)
+        with self.assertRaisesRegex(RuntimeError, "A separate iterator has been created"):
+            next(it2)
+        with self.assertRaisesRegex(RuntimeError, "A separate iterator has been created"):
+            next(source_dp)
+
+        r"""
+        Testing for the case where IterDataPipe's `__iter__` isn't a generator nor returns `self`,
+        and there isn't a `__next__` method.
+        """
+        class _CustomIterDP(IterDataPipe):
+            def __init__(self, iterable):
+                self.iterable = iter(iterable)
+
+            def __iter__(self):
+                return self.iterable  # Intentionally not returning `self`
+
+        # Functional Test: There should be an error with multiple iterators
+        source_dp = _CustomIterDP(range(10))
+        it1 = iter(source_dp)
+        self.assertEqual(0, next(it1))
+        it2 = iter(source_dp)
+        self.assertEqual(1, next(it2))
+        with self.assertRaisesRegex(RuntimeError, "This iterator has been invalidated"):
+            next(it1)
+
+
 if __name__ == '__main__':
     run_tests()
