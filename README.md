@@ -2,11 +2,15 @@
 
 ---
 
+<<<<<<< HEAD
 sdfasdfasfdsdfsssss
 sdfasdfasfdsdfs
 sdfasdfasfdsdfsasfdasfasf
 aaaaaaaaaa
 sdfasdfasfdsdfs
+=======
+sdfasdfasfdsdfsasfdasfasf
+>>>>>>> 80b76bc458 (update again)
 
 PyTorch is a Python package that provides two high-level features:
 
