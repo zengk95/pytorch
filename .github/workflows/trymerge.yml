@@ -27,7 +27,7 @@ jobs:
       - name: Merge PR
         env:
           GITHUB_TOKEN: ${{ secrets.MERGEBOT_TOKEN }}
-          PR_NUM: 4
+          PR_NUM: 6
           GH_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           FORCE: "false"
           ON_GREEN: "true"
