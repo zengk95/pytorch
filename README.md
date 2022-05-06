@@ -2,51 +2,43 @@
 
 ---
 
-sdfasdfasfdsdfsssss
-sdfasdfasfdsdfs
-sdfasdfasfdsdfsasfdasfasf
-aaaaaaaaaa
-sdfasdfasfdsdfs
-
 PyTorch is a Python package that provides two high-level features:
 
 -   Tensor computation (like NumPy) with strong GPU acceleration
 -   Deep neural networks built on a tape-based autograd system
 
 You can reuse your favorite Python packages such as NumPy, SciPy, and Cython to extend PyTorch when needed.
-test
+
 Our trunk health (Continuous Integration signals) can be found at [hud.pytorch.org](https://hud.pytorch.org/ci/pytorch/pytorch/master).
 
 <!-- toc -->
 
--   [More About PyTorch](#more-about-pytorch)
-    -   [A GPU-Ready Tensor Library](#a-gpu-ready-tensor-library)
-    -   [Dynamic Neural Networks: Tape-Based Autograd](#dynamic-neural-networks-tape-based-autograd)
-    -   [Python First](#python-first)
-    -   [Imperative Experiences](#imperative-experiences)
-    -   [Fast and Lean](#fast-and-lean)
-    -   [Extensions Without Pain](#extensions-without-pain)
--   [Installation](#installation)
-    -   [Binaries](#binaries)
-        -   [NVIDIA Jetson Platforms](#nvidia-jetson-platforms)
-    -   [From Source](#from-source)
-        -   [Install Dependencies](#install-dependencies)
-        -   [Get the PyTorch Source](#get-the-pytorch-source)
-        -   [Install PyTorch](#install-pytorch)
-            -   [Adjust Build Options (Optional)](#adjust-build-options-optional)
-    -   [Docker Image](#docker-image)
-        -   [Using pre-built images](#using-pre-built-images)
-        -   [Building the image yourself](#building-the-image-yourself)
-    -   [Building the Documentation](#building-the-documentation)
-    -   [Previous Versions](#previous-versions)
--   [Getting Started](#getting-started)
--   [Resources](#resources)
--   [Communication](#communication)
--   [Releases and Contributing](#releases-and-contributing)
--   [The Team](#the-team)
--   [License](#license)
-
-adsasdsdsd
+- [More About PyTorch](#more-about-pytorch)
+  - [A GPU-Ready Tensor Library](#a-gpu-ready-tensor-library)
+  - [Dynamic Neural Networks: Tape-Based Autograd](#dynamic-neural-networks-tape-based-autograd)
+  - [Python First](#python-first)
+  - [Imperative Experiences](#imperative-experiences)
+  - [Fast and Lean](#fast-and-lean)
+  - [Extensions Without Pain](#extensions-without-pain)
+- [Installation](#installation)
+  - [Binaries](#binaries)
+    - [NVIDIA Jetson Platforms](#nvidia-jetson-platforms)
+  - [From Source](#from-source)
+    - [Install Dependencies](#install-dependencies)
+    - [Get the PyTorch Source](#get-the-pytorch-source)
+    - [Install PyTorch](#install-pytorch)
+      - [Adjust Build Options (Optional)](#adjust-build-options-optional)
+  - [Docker Image](#docker-image)
+    - [Using pre-built images](#using-pre-built-images)
+    - [Building the image yourself](#building-the-image-yourself)
+  - [Building the Documentation](#building-the-documentation)
+  - [Previous Versions](#previous-versions)
+- [Getting Started](#getting-started)
+- [Resources](#resources)
+- [Communication](#communication)
+- [Releases and Contributing](#releases-and-contributing)
+- [The Team](#the-team)
+- [License](#license)
 
 <!-- tocstop -->
 
@@ -431,7 +423,6 @@ If you plan to contribute new features, utility functions, or extensions to the 
 Sending a PR without discussion might end up resulting in a rejected PR because we might be taking the core in a different direction than you might be aware of.
 
 To learn more about making a contribution to Pytorch, please see our [Contribution page](CONTRIBUTING.md).
-free
 
 ## The Team
 
