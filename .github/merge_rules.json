@@ -121,6 +121,6 @@
         "name": "superuser",
         "patterns": ["*"],
         "approved_by": [],
-        "mandatory_checks_name": ["Facebook CLA Check", "Lint"]
+        "mandatory_checks_name": ["Lint"]
     }
 ]

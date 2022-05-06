@@ -743,7 +743,7 @@ def find_matching_merge_rule(pr: GitHubPR,
             failed_checks = []
             checks = pr.get_checkrun_conclusions()
             # HACK: We don't want to skip CLA check, even when forced
-            for checkname in filter(lambda x: force is False or "CLA Check" in x, rule.mandatory_checks_name):
+            for checkname in filter(lambda x: force is False, rule.mandatory_checks_name):
                 if checkname not in checks or checks[checkname] is None:
                     pending_checks.append(checkname)
                 elif checks[checkname] != 'SUCCESS':
